@@ -15,6 +15,7 @@
 #include <QtGui>
 #include <QtWidgets>
 #include <fmt/format.h>
+#include <chrono>
 #ifdef __APPLE__
 #include <unistd.h> // for chdir
 #endif
@@ -182,6 +183,19 @@ GMainWindow::GMainWindow() : config(new Config()), emu_thread(nullptr) {
 
     QStringList args = QApplication::arguments();
     if (args.length() >= 2) {
+        if (args.length() >= 3) {
+            for( int i=2; i<args.length(); i++ ) {
+                std::string arg = args[i].toStdString();
+                if( arg == "--fullscreen" ) {
+                    UISettings::values.fullscreen = true;
+                    ui.action_Fullscreen->setChecked(true);
+                }
+                else if( arg.rfind("--screenshot-path",0) == 0 ) {
+                    UISettings::values.screenshot_path = QString::fromStdString(arg.substr( arg.find("=") + 1 ));
+                }
+            }
+            config->Save();
+        }
         BootGame(args[1]);
     }
 }
@@ -1611,19 +1625,10 @@ void GMainWindow::OnStopRecordingPlayback() {
 }
 
 void GMainWindow::OnCaptureScreenshot() {
-    OnPauseGame();
-    QFileDialog png_dialog(this, tr("Capture Screenshot"), UISettings::values.screenshot_path,
-                           tr("PNG Image (*.png)"));
-    png_dialog.setAcceptMode(QFileDialog::AcceptSave);
-    png_dialog.setDefaultSuffix("png");
-    if (png_dialog.exec()) {
-        const QString path = png_dialog.selectedFiles().first();
-        if (!path.isEmpty()) {
-            UISettings::values.screenshot_path = QFileInfo(path).path();
-            render_window->CaptureScreenshot(UISettings::values.screenshot_resolution_factor, path);
-        }
-    }
-    OnStartGame();
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    std::string path = UISettings::values.screenshot_path.toStdString();
+    path += "/" + std::to_string(now) + ".png";
+    render_window->CaptureScreenshot(UISettings::values.screenshot_resolution_factor, QString::fromStdString(path));
 }
 
 void GMainWindow::OnStartVideoDumping() {

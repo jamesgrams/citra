@@ -32,6 +32,7 @@
 #include "core/core.h"
 #include "core/dumping/backend.h"
 #include "core/file_sys/cia_container.h"
+#include "core/file_sys/ncch_container.h"
 #include "core/frontend/applets/default_applets.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "core/gdbstub/gdbstub.h"
@@ -68,7 +69,8 @@ static void PrintHelp(const char* argv0) {
                  "-d, --dump-video=[file]    Dumps audio and video to the given video file\n"
                  "-f, --fullscreen     Start in fullscreen mode\n"
                  "-h, --help           Display this help and exit\n"
-                 "-v, --version        Output version information and exit\n";
+                 "-v, --version        Output version information and exit\n"
+                 "-s, --save-path=[file]    Output the save path for a game and exit (supports .3ds, .cci, .cxi, and .app)\n";
 }
 
 static void PrintVersion() {
@@ -192,6 +194,7 @@ int main(int argc, char** argv) {
     std::string movie_record;
     std::string movie_play;
     std::string dump_video;
+    std::string save_path;
 
     InitializeLogging();
 
@@ -219,7 +222,8 @@ int main(int argc, char** argv) {
         {"multiplayer", required_argument, 0, 'm'}, {"movie-record", required_argument, 0, 'r'},
         {"movie-play", required_argument, 0, 'p'},  {"dump-video", required_argument, 0, 'd'},
         {"fullscreen", no_argument, 0, 'f'},        {"help", no_argument, 0, 'h'},
-        {"version", no_argument, 0, 'v'},           {0, 0, 0, 0},
+        {"version", no_argument, 0, 'v'},           {"save-path", required_argument, 0, 's'},
+        {0, 0, 0, 0}
     };
 
     while (optind < argc) {
@@ -298,6 +302,16 @@ int main(int argc, char** argv) {
                 return 0;
             case 'v':
                 PrintVersion();
+                return 0;
+            case 's':
+                save_path = optarg;
+                u64_le programId;
+                FileSys::NCCHContainer container(save_path);
+                container.Load();
+                container.ReadProgramId(programId);
+                std::string path = Service::AM::GetTitlePath( Service::FS::MediaType::SDMC, programId );
+                path += "data/00000001";
+                std::cout << path << std::endl;
                 return 0;
             }
         } else {
