@@ -12,6 +12,7 @@
 #include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/timer.h"
 #include "core/hle/kernel/wait_object.h"
+#include "core/settings.h"
 
 WaitTreeItem::~WaitTreeItem() = default;
 
@@ -51,12 +52,16 @@ std::size_t WaitTreeItem::Row() const {
 }
 
 std::vector<std::unique_ptr<WaitTreeThread>> WaitTreeItem::MakeThreadItemList() {
-    const auto& threads = Core::System::GetInstance().Kernel().GetThreadManager().GetThreadList();
+    u32 num_cores = Core::GetNumCores();
     std::vector<std::unique_ptr<WaitTreeThread>> item_list;
-    item_list.reserve(threads.size());
-    for (std::size_t i = 0; i < threads.size(); ++i) {
-        item_list.push_back(std::make_unique<WaitTreeThread>(*threads[i]));
-        item_list.back()->row = i;
+    for (u32 i = 0; i < num_cores; ++i) {
+        const auto& threads =
+            Core::System::GetInstance().Kernel().GetThreadManager(i).GetThreadList();
+        item_list.reserve(item_list.size() + threads.size());
+        for (std::size_t i = 0; i < threads.size(); ++i) {
+            item_list.push_back(std::make_unique<WaitTreeThread>(*threads[i]));
+            item_list.back()->row = i;
+        }
     }
     return item_list;
 }
@@ -178,7 +183,7 @@ QString WaitTreeThread::GetText() const {
     QString pc_info = tr(" PC = 0x%1 LR = 0x%2")
                           .arg(thread.context->GetProgramCounter(), 8, 16, QLatin1Char('0'))
                           .arg(thread.context->GetLinkRegister(), 8, 16, QLatin1Char('0'));
-    return WaitTreeWaitObject::GetText() + pc_info + " (" + status + ") ";
+    return QStringLiteral("%1%2 (%3) ").arg(WaitTreeWaitObject::GetText(), pc_info, status);
 }
 
 QColor WaitTreeThread::GetColor() const {
@@ -211,6 +216,7 @@ std::vector<std::unique_ptr<WaitTreeItem>> WaitTreeThread::GetChildren() const {
     std::vector<std::unique_ptr<WaitTreeItem>> list(WaitTreeWaitObject::GetChildren());
 
     const auto& thread = static_cast<const Kernel::Thread&>(object);
+    const auto* process = thread.owner_process;
 
     QString processor;
     switch (thread.processor_id) {
@@ -233,6 +239,10 @@ std::vector<std::unique_ptr<WaitTreeItem>> WaitTreeThread::GetChildren() const {
 
     list.push_back(std::make_unique<WaitTreeText>(tr("processor = %1").arg(processor)));
     list.push_back(std::make_unique<WaitTreeText>(tr("thread id = %1").arg(thread.GetThreadId())));
+    list.push_back(
+        std::make_unique<WaitTreeText>(tr("process = %1 (%2)")
+                                           .arg(QString::fromStdString(process->GetName()))
+                                           .arg(process->process_id)));
     list.push_back(std::make_unique<WaitTreeText>(tr("priority = %1(current) / %2(normal)")
                                                       .arg(thread.current_priority)
                                                       .arg(thread.nominal_priority)));

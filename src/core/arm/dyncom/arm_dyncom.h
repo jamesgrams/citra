@@ -21,7 +21,8 @@ class MemorySystem;
 class ARM_DynCom final : public ARM_Interface {
 public:
     explicit ARM_DynCom(Core::System* system, Memory::MemorySystem& memory,
-                        PrivilegeMode initial_mode);
+                        PrivilegeMode initial_mode, u32 id,
+                        std::shared_ptr<Core::Timing::Timer> timer);
     ~ARM_DynCom() override;
 
     void Run() override;
@@ -29,7 +30,7 @@ public:
 
     void ClearInstructionCache() override;
     void InvalidateCacheRange(u32 start_address, std::size_t length) override;
-    void PageTableChanged() override;
+    void PageTableChanged(Memory::PageTable* new_page_table) override;
 
     void SetPC(u32 pc) override;
     u32 GetPC() const override;

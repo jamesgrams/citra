@@ -91,6 +91,12 @@ udp_pad_index=
 # 0: Interpreter (slow), 1 (default): JIT (fast)
 use_cpu_jit =
 
+# Change the Clock Frequency of the emulated 3DS CPU.
+# Underclocking can increase the performance of the game at the risk of freezing.
+# Overclocking may fix lag that happens on console, but also comes with the risk of freezing.
+# Range is any positive integer (but we suspect 25 - 400 is a good idea) Default is 100
+cpu_clock_percentage =
+
 [Renderer]
 # Whether to render using GLES or OpenGL
 # 0 (default): OpenGL, 1: GLES
@@ -112,14 +118,22 @@ shaders_accurate_mul =
 # 0: Interpreter (slow), 1 (default): JIT (fast)
 use_shader_jit =
 
+# Forces VSync on the display thread. Usually doesn't impact performance, but on some drivers it can
+# so only turn this off if you notice a speed difference.
+# 0: Off, 1 (default): On
+use_vsync_new =
+
+# Reduce stuttering by storing and loading generated shaders to disk
+# 0: Off, 1 (default. On)
+use_disk_shader_cache =
+
 # Resolution scale factor
 # 0: Auto (scales resolution to window size), 1: Native 3DS screen resolution, Otherwise a scale
 # factor for the 3DS resolution
 resolution_factor =
 
-# Whether to enable V-Sync (caps the framerate at 60FPS) or not.
-# 0 (default): Off, 1: On
-vsync_enabled =
+# Texture filter name
+texture_filter_name =
 
 # Turns on the frame limiter, which will limit frames output to the target game speed
 # 0: Off, 1: On (default)
@@ -136,7 +150,7 @@ bg_blue =
 bg_green =
 
 # Whether and how Stereoscopic 3D should be rendered
-# 0 (default): Off, 1: Side by Side, 2: Anaglyph
+# 0 (default): Off, 1: Side by Side, 2: Anaglyph, 3: Interlaced
 render_3d =
 
 # Change 3D Intensity
@@ -178,6 +192,22 @@ custom_bottom_bottom =
 # 0 (default): Top Screen is prominent, 1: Bottom Screen is prominent
 swap_screen =
 
+# Toggle upright orientation, for book style games.
+# 0 (default): Off, 1: On
+upright_screen =
+
+# Dumps textures as PNG to dump/textures/[Title ID]/.
+# 0 (default): Off, 1: On
+dump_textures =
+
+# Reads PNG files from load/textures/[Title ID]/ and replaces textures.
+# 0 (default): Off, 1: On
+custom_textures =
+
+# Loads all custom textures into memory before booting.
+# 0 (default): Off, 1: On
+preload_textures =
+
 [Audio]
 # Whether or not to enable DSP LLE
 # 0 (default): No, 1: Yes
@@ -213,7 +243,7 @@ use_virtual_sd =
 
 [System]
 # The system model that Citra will try to emulate
-# 0: Old 3DS (default), 1: New 3DS
+# 0: Old 3DS, 1: New 3DS (default)
 is_new_3ds =
 
 # The system region that Citra will use during emulation
@@ -274,5 +304,31 @@ web_api_url = https://api.citra-emu.org
 # See https://profile.citra-emu.org/ for more info
 citra_username =
 citra_token =
+
+[Video Dumping]
+# Format of the video to output, default: webm
+output_format =
+
+# Options passed to the muxer (optional)
+# This is a param package, format: [key1]:[value1],[key2]:[value2],...
+format_options =
+
+# Video encoder used, default: libvpx-vp9
+video_encoder =
+
+# Options passed to the video codec (optional)
+video_encoder_options =
+
+# Video bitrate, default: 2500000
+video_bitrate =
+
+# Audio encoder used, default: libvorbis
+audio_encoder =
+
+# Options passed to the audio codec (optional)
+audio_encoder_options =
+
+# Audio bitrate, default: 64000
+audio_bitrate =
 )";
 }

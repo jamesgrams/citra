@@ -99,8 +99,9 @@ void Lobby::RetranslateUi() {
 
 QString Lobby::PasswordPrompt() {
     bool ok;
-    const QString text = QInputDialog::getText(this, tr("Password Required to Join"),
-                                               tr("Password:"), QLineEdit::Password, "", &ok);
+    const QString text =
+        QInputDialog::getText(this, tr("Password Required to Join"), tr("Password:"),
+                              QLineEdit::Password, QString(), &ok);
     return ok ? text : QString();
 }
 
@@ -127,7 +128,7 @@ void Lobby::OnJoinRoom(const QModelIndex& source) {
         index = source.parent();
     }
     if (!ui->nickname->hasAcceptableInput()) {
-        NetworkMessage::ShowError(NetworkMessage::USERNAME_NOT_VALID);
+        NetworkMessage::ErrorManager::ShowError(NetworkMessage::ErrorManager::USERNAME_NOT_VALID);
         return;
     }
 
@@ -181,7 +182,7 @@ void Lobby::OnJoinRoom(const QModelIndex& source) {
 void Lobby::ResetModel() {
     model->clear();
     model->insertColumns(0, Column::TOTAL);
-    model->setHeaderData(Column::EXPAND, Qt::Horizontal, "", Qt::DisplayRole);
+    model->setHeaderData(Column::EXPAND, Qt::Horizontal, QString(), Qt::DisplayRole);
     model->setHeaderData(Column::ROOM_NAME, Qt::Horizontal, tr("Room Name"), Qt::DisplayRole);
     model->setHeaderData(Column::GAME_NAME, Qt::Horizontal, tr("Preferred Game"), Qt::DisplayRole);
     model->setHeaderData(Column::HOST, Qt::Horizontal, tr("Host"), Qt::DisplayRole);

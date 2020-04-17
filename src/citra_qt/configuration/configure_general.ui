@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>345</width>
-    <height>357</height>
+    <height>358</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -26,6 +26,20 @@
          <widget class="QCheckBox" name="toggle_check_exit">
           <property name="text">
            <string>Confirm exit while emulation is running</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="toggle_background_pause">
+          <property name="text">
+           <string>Pause emulation when in background</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="toggle_hide_mouse">
+          <property name="text">
+           <string>Hide mouse on inactivity</string>
           </property>
          </widget>
         </item>
@@ -61,6 +75,13 @@
         <string>Emulation</string>
        </property>
        <layout class="QGridLayout" name="gridLayout">
+        <item row="1" column="0">
+         <widget class="QCheckBox" name="toggle_frame_limit">
+          <property name="text">
+           <string>Limit Speed Percent</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="0">
          <widget class="QLabel" name="label">
           <property name="text">
@@ -110,13 +131,6 @@
             <string notr="true">TWN</string>
            </property>
           </item>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QCheckBox" name="toggle_frame_limit">
-          <property name="text">
-           <string>Limit Speed Percent</string>
-          </property>
          </widget>
         </item>
         <item row="1" column="1">

@@ -36,6 +36,8 @@ add_library(core STATIC
     core.h
     core_timing.cpp
     core_timing.h
+    custom_tex_cache.cpp
+    custom_tex_cache.h
     dumping/backend.cpp
     dumping/backend.h
     file_sys/archive_backend.cpp
@@ -70,8 +72,12 @@ add_library(core STATIC
     file_sys/delay_generator.h
     file_sys/ivfc_archive.cpp
     file_sys/ivfc_archive.h
+    file_sys/layered_fs.cpp
+    file_sys/layered_fs.h
     file_sys/ncch_container.cpp
     file_sys/ncch_container.h
+    file_sys/patch.cpp
+    file_sys/patch.h
     file_sys/path_parser.cpp
     file_sys/path_parser.h
     file_sys/romfs_reader.cpp
@@ -100,9 +106,12 @@ add_library(core STATIC
     frontend/emu_window.h
     frontend/framebuffer_layout.cpp
     frontend/framebuffer_layout.h
+    frontend/image_interface.h
     frontend/input.h
     frontend/mic.h
     frontend/mic.cpp
+    frontend/scope_acquire_context.cpp
+    frontend/scope_acquire_context.h
     gdbstub/gdbstub.cpp
     gdbstub/gdbstub.h
     hle/applets/applet.cpp
@@ -134,6 +143,8 @@ add_library(core STATIC
     hle/kernel/hle_ipc.h
     hle/kernel/ipc.cpp
     hle/kernel/ipc.h
+    hle/kernel/ipc_debugger/recorder.cpp
+    hle/kernel/ipc_debugger/recorder.h
     hle/kernel/kernel.cpp
     hle/kernel/kernel.h
     hle/kernel/memory.cpp
@@ -410,6 +421,8 @@ add_library(core STATIC
     hw/hw.h
     hw/lcd.cpp
     hw/lcd.h
+    hw/rsa/rsa.cpp
+    hw/rsa/rsa.h
     hw/y2r.cpp
     hw/y2r.h
     loader/3dsx.cpp
@@ -457,9 +470,17 @@ create_target_directory_groups(core)
 
 target_link_libraries(core PUBLIC common PRIVATE audio_core network video_core)
 target_link_libraries(core PUBLIC Boost::boost PRIVATE cryptopp fmt open_source_archives)
+
 if (ENABLE_WEB_SERVICE)
-    target_compile_definitions(core PRIVATE -DENABLE_WEB_SERVICE)
-    target_link_libraries(core PRIVATE web_service)
+    get_directory_property(OPENSSL_LIBS
+        DIRECTORY ${PROJECT_SOURCE_DIR}/externals/libressl
+        DEFINITION OPENSSL_LIBS)
+
+    target_compile_definitions(core PRIVATE -DENABLE_WEB_SERVICE -DCPPHTTPLIB_OPENSSL_SUPPORT)
+    target_link_libraries(core PRIVATE web_service ${OPENSSL_LIBS} httplib lurlparser)
+    if (ANDROID)
+        target_link_libraries(core PRIVATE ifaddrs)
+    endif()
 endif()
 
 if (ARCHITECTURE_x86_64)
@@ -473,5 +494,5 @@ if (ARCHITECTURE_x86_64)
 endif()
 
 if (ENABLE_FFMPEG_VIDEO_DUMPER)
-    target_link_libraries(core PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale FFmpeg::swresample FFmpeg::avutil)
+    target_link_libraries(core PUBLIC FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale FFmpeg::swresample FFmpeg::avutil)
 endif()

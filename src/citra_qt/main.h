@@ -30,7 +30,9 @@ class GraphicsBreakPointsWidget;
 class GraphicsTracingWidget;
 class GraphicsVertexShaderWidget;
 class GRenderWindow;
+class IPCRecorderWidget;
 class LLEServiceModulesWidget;
+class LoadingScreen;
 class MicroProfileDialog;
 class MultiplayerState;
 class ProfilerWidget;
@@ -40,6 +42,7 @@ class QProgressBar;
 class RegistersWidget;
 class Updater;
 class WaitTreeWidget;
+
 namespace DiscordRPC {
 class DiscordInterface;
 }
@@ -68,6 +71,13 @@ public:
     GameList* game_list;
     std::unique_ptr<DiscordRPC::DiscordInterface> discord_rpc;
 
+    bool DropAction(QDropEvent* event);
+    void AcceptDropEvent(QDropEvent* event);
+
+public slots:
+    void OnAppFocusStateChanged(Qt::ApplicationState state);
+    void OnLoadComplete();
+
 signals:
 
     /**
@@ -75,8 +85,8 @@ signals:
      * about to start. At this time, the core system emulation has been initialized, and all
      * emulation handles and memory should be valid.
      *
-     * @param emu_thread Pointer to the newly created EmuThread (to be used by widgets that need to
-     *      access/change emulation state).
+     * @param emu_thread Pointer to the newly created EmuThread (to be used by widgets that need
+     * to access/change emulation state).
      */
     void EmulationStarting(EmuThread* emu_thread);
 
@@ -104,6 +114,9 @@ private:
     void ConnectWidgetEvents();
     void ConnectMenuEvents();
 
+    void PreventOSSleep();
+    void AllowOSSleep();
+
     bool LoadROM(const QString& filename);
     void BootGame(const QString& filename);
     void ShutdownGame();
@@ -114,6 +127,7 @@ private:
     void ShowNoUpdatePrompt();
     void CheckForUpdates();
     void SetDiscordEnabled(bool state);
+    void LoadAmiibo(const QString& filename);
 
     /**
      * Stores the filename in the recently loaded files list.
@@ -155,7 +169,8 @@ private slots:
     void OnGameListOpenFolder(u64 program_id, GameListOpenTarget target);
     void OnGameListNavigateToGamedbEntry(u64 program_id,
                                          const CompatibilityList& compatibility_list);
-    void OnGameListOpenDirectory(QString path);
+    void OnGameListDumpRomFS(QString game_path, u64 program_id);
+    void OnGameListOpenDirectory(const QString& directory);
     void OnGameListAddDirectory();
     void OnGameListShowList(bool show);
     void OnMenuLoadFile();
@@ -175,6 +190,7 @@ private slots:
     void ChangeScreenLayout();
     void ToggleScreenLayout();
     void OnSwapScreens();
+    void OnRotateScreens();
     void OnCheats();
     void ShowFullscreen();
     void HideFullscreen();
@@ -184,8 +200,10 @@ private slots:
     void OnPlayMovie();
     void OnStopRecordingPlayback();
     void OnCaptureScreenshot();
+#ifdef ENABLE_FFMPEG_VIDEO_DUMPER
     void OnStartVideoDumping();
     void OnStopVideoDumping();
+#endif
     void OnCoreError(Core::System::ResultStatus, std::string);
     /// Called whenever a user selects Help->About Citra
     void OnMenuAboutCitra();
@@ -202,12 +220,15 @@ private:
     void UpdateWindowTitle();
     void RetranslateStatusBar();
     void InstallCIA(QStringList filepaths);
+    void HideMouseCursor();
+    void ShowMouseCursor();
 
     Ui::MainWindow ui;
 
     GRenderWindow* render_window;
 
     GameListPlaceholder* game_list_placeholder;
+    LoadingScreen* loading_screen;
 
     // Status bar elements
     QProgressBar* progress_bar = nullptr;
@@ -228,6 +249,9 @@ private:
     // The path to the game currently running
     QString game_path;
 
+    bool auto_paused = false;
+    QTimer mouse_hide_timer;
+
     // Movie
     bool movie_record_on_start = false;
     QString movie_record_path;
@@ -237,6 +261,8 @@ private:
     QString video_dumping_path;
     // Whether game shutdown is delayed due to video dumping
     bool game_shutdown_delayed = false;
+    // Whether game was paused due to stopping video dumping
+    bool game_paused_for_dumping = false;
 
     // Debugger panes
     ProfilerWidget* profilerWidget;
@@ -247,6 +273,7 @@ private:
     GraphicsBreakPointsWidget* graphicsBreakpointsWidget;
     GraphicsVertexShaderWidget* graphicsVertexShaderWidget;
     GraphicsTracingWidget* graphicsTracingWidget;
+    IPCRecorderWidget* ipcRecorderWidget;
     LLEServiceModulesWidget* lleServiceModulesWidget;
     WaitTreeWidget* waitTreeWidget;
     Updater* updater;
@@ -267,6 +294,8 @@ protected:
     void dropEvent(QDropEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragMoveEvent(QDragMoveEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 };
 
 Q_DECLARE_METATYPE(std::size_t);

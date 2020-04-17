@@ -9,10 +9,17 @@
 #include "common/common_types.h"
 #include "core/arm/skyeye_common/arm_regformat.h"
 #include "core/arm/skyeye_common/vfp/asm_vfp.h"
+#include "core/core_timing.h"
+
+namespace Memory {
+struct PageTable;
+};
 
 /// Generic ARM11 CPU interface
 class ARM_Interface : NonCopyable {
 public:
+    explicit ARM_Interface(u32 id, std::shared_ptr<Core::Timing::Timer> timer)
+        : timer(timer), id(id){};
     virtual ~ARM_Interface() {}
 
     class ThreadContext {
@@ -70,7 +77,7 @@ public:
     virtual void InvalidateCacheRange(u32 start_address, std::size_t length) = 0;
 
     /// Notify CPU emulation that page tables have changed
-    virtual void PageTableChanged() = 0;
+    virtual void PageTableChanged(Memory::PageTable* new_page_table) = 0;
 
     /**
      * Set the Program Counter to an address
@@ -172,4 +179,18 @@ public:
 
     /// Prepare core for thread reschedule (if needed to correctly handle state)
     virtual void PrepareReschedule() = 0;
+
+    std::shared_ptr<Core::Timing::Timer> GetTimer() {
+        return timer;
+    }
+
+    u32 GetID() const {
+        return id;
+    }
+
+protected:
+    std::shared_ptr<Core::Timing::Timer> timer;
+
+private:
+    u32 id;
 };
