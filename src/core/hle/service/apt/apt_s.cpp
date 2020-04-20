@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "common/archives.h"
 #include "core/hle/service/apt/apt_s.h"
 
 namespace Service::APT {
@@ -62,8 +63,8 @@ APT_S::APT_S(std::shared_ptr<Module> apt)
         {0x00330000, &APT_S::GetProgramIdOnApplicationJump, "GetProgramIdOnApplicationJump"},
         {0x00340084, nullptr, "SendDeliverArg"},
         {0x00350080, nullptr, "ReceiveDeliverArg"},
-        {0x00360040, nullptr, "LoadSysMenuArg"},
-        {0x00370042, nullptr, "StoreSysMenuArg"},
+        {0x00360040, &APT_S::LoadSysMenuArg, "LoadSysMenuArg"},
+        {0x00370042, &APT_S::StoreSysMenuArg, "StoreSysMenuArg"},
         {0x00380040, nullptr, "PreloadResidentApplet"},
         {0x00390040, nullptr, "PrepareToStartResidentApplet"},
         {0x003A0044, nullptr, "StartResidentApplet"},
@@ -82,7 +83,7 @@ APT_S::APT_S(std::shared_ptr<Module> apt)
         {0x00470104, &APT_S::Unwrap, "Unwrap"},
         {0x00480100, nullptr, "GetProgramInfo"},
         {0x00490180, nullptr, "Reboot"},
-        {0x004A0040, nullptr, "GetCaptureInfo"},
+        {0x004A0040, &APT_S::GetCaptureInfo, "GetCaptureInfo"},
         {0x004B00C2, &APT_S::AppletUtility, "AppletUtility"},
         {0x004C0000, nullptr, "SetFatalErrDispMode"},
         {0x004D0080, nullptr, "GetAppletProgramInfo"},
@@ -99,9 +100,11 @@ APT_S::APT_S(std::shared_ptr<Module> apt)
         {0x01010000, &APT_S::CheckNew3DSApp, "CheckNew3DSApp"},
         {0x01020000, &APT_S::CheckNew3DS, "CheckNew3DS"},
         {0x01040000, nullptr, "IsStandardMemoryLayout"},
-        {0x01050100, nullptr, "IsTitleAllowed"},
+        {0x01050100, &APT_S::IsTitleAllowed, "IsTitleAllowed"},
     };
     RegisterHandlers(functions);
 }
 
 } // namespace Service::APT
+
+SERIALIZE_EXPORT_IMPL(Service::APT::APT_S)

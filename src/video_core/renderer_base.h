@@ -13,10 +13,6 @@ namespace Frontend {
 class EmuWindow;
 }
 
-namespace FrameDumper {
-class Backend;
-}
-
 class RendererBase : NonCopyable {
 public:
     explicit RendererBase(Frontend::EmuWindow& window);
@@ -68,6 +64,7 @@ public:
     }
 
     void RefreshRasterizerSetting();
+    void Sync();
 
 protected:
     Frontend::EmuWindow& render_window; ///< Reference to the render window handle.

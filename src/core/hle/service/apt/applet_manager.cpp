@@ -10,6 +10,8 @@
 #include "core/hle/service/apt/ns.h"
 #include "core/hle/service/cfg/cfg.h"
 
+SERVICE_CONSTRUCT_IMPL(Service::APT::AppletManager)
+
 namespace Service::APT {
 
 enum class AppletPos { Application = 0, Library = 1, System = 2, SysLibrary = 3, Resident = 4 };
@@ -207,10 +209,11 @@ ResultVal<MessageParameter> AppletManager::GlanceParameter(AppletId app_id) {
 
     // Note: The NS module always clears the DSPSleep and DSPWakeup signals even in GlanceParameter.
     if (next_parameter->signal == SignalType::DspSleep ||
-        next_parameter->signal == SignalType::DspWakeup)
+        next_parameter->signal == SignalType::DspWakeup) {
         next_parameter = {};
+    }
 
-    return MakeResult<MessageParameter>(parameter);
+    return MakeResult<MessageParameter>(std::move(parameter));
 }
 
 ResultVal<MessageParameter> AppletManager::ReceiveParameter(AppletId app_id) {

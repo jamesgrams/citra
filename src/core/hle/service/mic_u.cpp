@@ -2,9 +2,11 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <boost/serialization/weak_ptr.hpp>
 #ifdef HAVE_CUBEB
 #include "audio_core/cubeb_input.h"
 #endif
+#include "common/archives.h"
 #include "common/logging/log.h"
 #include "core/core.h"
 #include "core/frontend/mic.h"
@@ -17,7 +19,16 @@
 #include "core/hle/service/mic_u.h"
 #include "core/settings.h"
 
+SERVICE_CONSTRUCT_IMPL(Service::MIC::MIC_U)
+SERIALIZE_EXPORT_IMPL(Service::MIC::MIC_U)
+
 namespace Service::MIC {
+
+template <class Archive>
+void MIC_U::serialize(Archive& ar, const unsigned int) {
+    ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
+    ar&* impl.get();
+}
 
 /// Microphone audio encodings.
 enum class Encoding : u8 {
@@ -52,13 +63,13 @@ constexpr u32 GetSampleRateInHz(SampleRate sample_rate) {
 }
 
 // The 3ds hardware was tested to write to the sharedmem every 15 samples regardless of sample_rate.
-// So we can just divide the sample rate by 16 and that'll give the correct timing for the event
-constexpr u64 GetBufferUpdateRate(SampleRate sample_rate) {
-    return GetSampleRateInHz(sample_rate) / 16;
+constexpr u64 GetBufferUpdatePeriod(SampleRate sample_rate) {
+    return 15 * BASE_CLOCK_RATE_ARM11 / GetSampleRateInHz(sample_rate);
 }
 
 // Variables holding the current mic buffer writing state
 struct State {
+    std::weak_ptr<Kernel::SharedMemory> memory_ref{};
     u8* sharedmem_buffer = nullptr;
     u32 sharedmem_size = 0;
     std::size_t size = 0;
@@ -95,6 +106,23 @@ struct State {
         std::memcpy(sharedmem_buffer + (sharedmem_size - sizeof(u32)), reinterpret_cast<u8*>(&off),
                     sizeof(u32));
     }
+
+private:
+    template <class Archive>
+    void serialize(Archive& ar, const unsigned int) {
+        std::shared_ptr<Kernel::SharedMemory> _memory_ref = memory_ref.lock();
+        ar& _memory_ref;
+        memory_ref = _memory_ref;
+        ar& sharedmem_size;
+        ar& size;
+        ar& offset;
+        ar& initial_offset;
+        ar& looped_buffer;
+        ar& sample_size;
+        ar& sample_rate;
+        sharedmem_buffer = _memory_ref ? _memory_ref->GetPointer() : nullptr;
+    }
+    friend class boost::serialization::access;
 };
 
 struct MIC_U::Impl {
@@ -114,6 +142,7 @@ struct MIC_U::Impl {
 
         if (shared_memory) {
             shared_memory->SetName("MIC_U:shared_memory");
+            state.memory_ref = shared_memory;
             state.sharedmem_buffer = shared_memory->GetPointer();
             state.sharedmem_size = size;
         }
@@ -148,14 +177,23 @@ struct MIC_U::Impl {
         }
 
         // schedule next run
-        timing.ScheduleEvent(GetBufferUpdateRate(state.sample_rate) - cycles_late,
+        timing.ScheduleEvent(GetBufferUpdatePeriod(state.sample_rate) - cycles_late,
                              buffer_write_event);
+    }
+
+    void StartSampling() {
+        auto sign = encoding == Encoding::PCM8Signed || encoding == Encoding::PCM16Signed
+                        ? Frontend::Mic::Signedness::Signed
+                        : Frontend::Mic::Signedness::Unsigned;
+        mic->StartSampling({sign, state.sample_size, state.looped_buffer,
+                            GetSampleRateInHz(state.sample_rate), state.initial_offset,
+                            static_cast<u32>(state.size)});
     }
 
     void StartSampling(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx, 0x03, 5, 0};
 
-        Encoding encoding = rp.PopEnum<Encoding>();
+        encoding = rp.PopEnum<Encoding>();
         SampleRate sample_rate = rp.PopEnum<SampleRate>();
         u32 audio_buffer_offset = rp.PopRaw<u32>();
         u32 audio_buffer_size = rp.Pop<u32>();
@@ -167,9 +205,6 @@ struct MIC_U::Impl {
             mic->StopSampling();
         }
 
-        auto sign = encoding == Encoding::PCM8Signed || encoding == Encoding::PCM16Signed
-                        ? Frontend::Mic::Signedness::Signed
-                        : Frontend::Mic::Signedness::Unsigned;
         u8 sample_size = encoding == Encoding::PCM8Signed || encoding == Encoding::PCM8 ? 8 : 16;
         state.offset = state.initial_offset = audio_buffer_offset;
         state.sample_rate = sample_rate;
@@ -177,10 +212,9 @@ struct MIC_U::Impl {
         state.looped_buffer = audio_buffer_loop;
         state.size = audio_buffer_size;
 
-        mic->StartSampling({sign, sample_size, audio_buffer_loop, GetSampleRateInHz(sample_rate),
-                            audio_buffer_offset, audio_buffer_size});
+        StartSampling();
 
-        timing.ScheduleEvent(GetBufferUpdateRate(state.sample_rate), buffer_write_event);
+        timing.ScheduleEvent(GetBufferUpdatePeriod(state.sample_rate), buffer_write_event);
 
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
         rb.Push(RESULT_SUCCESS);
@@ -363,6 +397,36 @@ struct MIC_U::Impl {
     std::unique_ptr<Frontend::Mic::Interface> mic;
     Core::Timing& timing;
     State state{};
+    Encoding encoding{};
+
+private:
+    template <class Archive>
+    void serialize(Archive& ar, const unsigned int file_version) {
+        ar& change_mic_impl_requested;
+        ar& buffer_full_event;
+        // buffer_write_event set in constructor
+        ar& shared_memory;
+        ar& client_version;
+        ar& allow_shell_closed;
+        ar& clamp;
+        // mic interface set in constructor
+        ar& state;
+        if (file_version > 0) {
+            // Maintain the internal mic state
+            ar& encoding;
+            bool is_sampling = mic && mic->IsSampling();
+            ar& is_sampling;
+            if (Archive::is_loading::value) {
+                if (is_sampling) {
+                    CreateMic();
+                    StartSampling();
+                } else if (mic) {
+                    mic->StopSampling();
+                }
+            }
+        }
+    }
+    friend class boost::serialization::access;
 };
 
 void MIC_U::MapSharedMem(Kernel::HLERequestContext& ctx) {

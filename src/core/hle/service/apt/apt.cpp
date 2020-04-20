@@ -2,6 +2,9 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <boost/serialization/shared_ptr.hpp>
+#include <boost/serialization/vector.hpp>
+#include "common/archives.h"
 #include "common/common_paths.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
@@ -26,7 +29,24 @@
 #include "core/hw/aes/ccm.h"
 #include "core/hw/aes/key.h"
 
+SERVICE_CONSTRUCT_IMPL(Service::APT::Module)
+
 namespace Service::APT {
+
+template <class Archive>
+void Module::serialize(Archive& ar, const unsigned int) {
+    ar& shared_font_mem;
+    ar& shared_font_loaded;
+    ar& shared_font_relocated;
+    ar& lock;
+    ar& cpu_percent;
+    ar& unknown_ns_state_field;
+    ar& screen_capture_buffer;
+    ar& screen_capture_post_permission;
+    ar& applet_manager;
+}
+
+SERIALIZE_IMPL(Module)
 
 Module::NSInterface::NSInterface(std::shared_ptr<Module> apt, const char* name, u32 max_session)
     : ServiceFramework(name, max_session), apt(std::move(apt)) {}
@@ -337,8 +357,8 @@ void Module::APTInterface::SendParameter(Kernel::HLERequestContext& ctx) {
 
 void Module::APTInterface::ReceiveParameter(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx, 0xD, 2, 0); // 0xD0080
-    AppletId app_id = rp.PopEnum<AppletId>();
-    u32 buffer_size = rp.Pop<u32>();
+    const auto app_id = rp.PopEnum<AppletId>();
+    const u32 buffer_size = rp.Pop<u32>();
 
     LOG_DEBUG(Service_APT, "called app_id={:#010X}, buffer_size={:#010X}", static_cast<u32>(app_id),
               buffer_size);
@@ -359,14 +379,14 @@ void Module::APTInterface::ReceiveParameter(Kernel::HLERequestContext& ctx) {
     ASSERT_MSG(next_parameter->buffer.size() <= buffer_size, "Input static buffer is too small!");
     rb.Push(static_cast<u32>(next_parameter->buffer.size())); // Parameter buffer size
     rb.PushMoveObjects(next_parameter->object);
-    next_parameter->buffer.resize(buffer_size, 0); // APT always push a buffer with the maximum size
-    rb.PushStaticBuffer(next_parameter->buffer, 0);
+    next_parameter->buffer.resize(buffer_size); // APT always push a buffer with the maximum size
+    rb.PushStaticBuffer(std::move(next_parameter->buffer), 0);
 }
 
 void Module::APTInterface::GlanceParameter(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx, 0xE, 2, 0); // 0xE0080
-    AppletId app_id = rp.PopEnum<AppletId>();
-    u32 buffer_size = rp.Pop<u32>();
+    const auto app_id = rp.PopEnum<AppletId>();
+    const u32 buffer_size = rp.Pop<u32>();
 
     LOG_DEBUG(Service_APT, "called app_id={:#010X}, buffer_size={:#010X}", static_cast<u32>(app_id),
               buffer_size);
@@ -386,8 +406,8 @@ void Module::APTInterface::GlanceParameter(Kernel::HLERequestContext& ctx) {
     ASSERT_MSG(next_parameter->buffer.size() <= buffer_size, "Input static buffer is too small!");
     rb.Push(static_cast<u32>(next_parameter->buffer.size())); // Parameter buffer size
     rb.PushMoveObjects(next_parameter->object);
-    next_parameter->buffer.resize(buffer_size, 0); // APT always push a buffer with the maximum size
-    rb.PushStaticBuffer(next_parameter->buffer, 0);
+    next_parameter->buffer.resize(buffer_size); // APT always push a buffer with the maximum size
+    rb.PushStaticBuffer(std::move(next_parameter->buffer), 0);
 }
 
 void Module::APTInterface::CancelParameter(Kernel::HLERequestContext& ctx) {
@@ -650,6 +670,37 @@ void Module::APTInterface::CloseLibraryApplet(Kernel::HLERequestContext& ctx) {
     rb.Push(apt->applet_manager->CloseLibraryApplet(std::move(object), std::move(buffer)));
 }
 
+void Module::APTInterface::LoadSysMenuArg(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp(ctx, 0x36, 1, 0); // 0x00360040
+    const auto size = std::min(std::size_t{rp.Pop<u32>()}, SysMenuArgSize);
+
+    // This service function does not clear the buffer.
+
+    std::vector<u8> buffer(size);
+    std::copy_n(apt->sys_menu_arg_buffer.cbegin(), size, buffer.begin());
+
+    IPC::RequestBuilder rb = rp.MakeBuilder(1, 2);
+    rb.Push(RESULT_SUCCESS);
+    rb.PushStaticBuffer(std::move(buffer), 0);
+
+    LOG_DEBUG(Service_APT, "called");
+}
+
+void Module::APTInterface::StoreSysMenuArg(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp(ctx, 0x37, 1, 2); // 0x00370042
+    const auto size = std::min(std::size_t{rp.Pop<u32>()}, SysMenuArgSize);
+    const auto& buffer = rp.PopStaticBuffer();
+
+    ASSERT_MSG(buffer.size() >= size, "Buffer too small to hold requested data");
+
+    std::copy_n(buffer.cbegin(), size, apt->sys_menu_arg_buffer.begin());
+
+    IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
+    rb.Push(RESULT_SUCCESS);
+
+    LOG_DEBUG(Service_APT, "called");
+}
+
 void Module::APTInterface::SendCaptureBufferInfo(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx, 0x40, 1, 2); // 0x00400042
     u32 size = rp.Pop<u32>();
@@ -669,6 +720,18 @@ void Module::APTInterface::ReceiveCaptureBufferInfo(Kernel::HLERequestContext& c
     rb.Push(RESULT_SUCCESS);
     rb.Push(static_cast<u32>(apt->screen_capture_buffer.size()));
     rb.PushStaticBuffer(std::move(apt->screen_capture_buffer), 0);
+}
+
+void Module::APTInterface::GetCaptureInfo(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp(ctx, 0x4A, 1, 0); // 0x004A0040
+    const u32 size = rp.Pop<u32>();
+    ASSERT(size == 0x20);
+
+    IPC::RequestBuilder rb = rp.MakeBuilder(2, 2);
+    rb.Push(RESULT_SUCCESS);
+    rb.Push(static_cast<u32>(apt->screen_capture_buffer.size()));
+    // This service function does not clear the capture buffer.
+    rb.PushStaticBuffer(apt->screen_capture_buffer, 0);
 }
 
 void Module::APTInterface::SetScreenCapPostPermission(Kernel::HLERequestContext& ctx) {
@@ -716,9 +779,8 @@ void Module::APTInterface::GetAppletInfo(Kernel::HLERequestContext& ctx) {
 void Module::APTInterface::GetStartupArgument(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx, 0x51, 2, 0); // 0x00510080
     u32 parameter_size = rp.Pop<u32>();
-    StartupArgumentType startup_argument_type = static_cast<StartupArgumentType>(rp.Pop<u8>());
-
-    const u32 max_parameter_size{0x1000};
+    constexpr u32 max_parameter_size{0x1000};
+    const auto startup_argument_type = static_cast<StartupArgumentType>(rp.Pop<u8>());
 
     if (parameter_size > max_parameter_size) {
         LOG_ERROR(Service_APT,
@@ -728,7 +790,7 @@ void Module::APTInterface::GetStartupArgument(Kernel::HLERequestContext& ctx) {
         parameter_size = max_parameter_size;
     }
 
-    std::vector<u8> parameter(parameter_size, 0);
+    std::vector<u8> parameter(parameter_size);
 
     LOG_WARNING(Service_APT, "(STUBBED) called, startup_argument_type={}, parameter_size={:#010X}",
                 static_cast<u32>(startup_argument_type), parameter_size);
@@ -736,7 +798,7 @@ void Module::APTInterface::GetStartupArgument(Kernel::HLERequestContext& ctx) {
     IPC::RequestBuilder rb = rp.MakeBuilder(2, 2);
     rb.Push(RESULT_SUCCESS);
     rb.Push<u32>(0);
-    rb.PushStaticBuffer(parameter, 0);
+    rb.PushStaticBuffer(std::move(parameter), 0);
 }
 
 void Module::APTInterface::Wrap(Kernel::HLERequestContext& ctx) {
@@ -856,6 +918,21 @@ void Module::APTInterface::CheckNew3DS(Kernel::HLERequestContext& ctx) {
     PTM::CheckNew3DS(rb);
 
     LOG_WARNING(Service_APT, "(STUBBED) called");
+}
+
+void Module::APTInterface::IsTitleAllowed(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp(ctx, 0x105, 4, 0); // 0x01050100
+    const u64 program_id = rp.Pop<u64>();
+    const auto media_type = rp.PopEnum<FS::MediaType>();
+    rp.Skip(1, false); // Padding
+
+    // We allow all titles to be launched, so this function is a no-op
+    IPC::RequestBuilder rb = rp.MakeBuilder(2, 0);
+    rb.Push(RESULT_SUCCESS);
+    rb.Push(true);
+
+    LOG_DEBUG(Service_APT, "called, title_id={:016X} media_type={}", program_id,
+              static_cast<u32>(media_type));
 }
 
 Module::APTInterface::APTInterface(std::shared_ptr<Module> apt, const char* name, u32 max_session)

@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "audio_core/audio_types.h"
+#include "common/archives.h"
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "core/core.h"
@@ -12,6 +13,9 @@
 
 using DspPipe = AudioCore::DspPipe;
 using InterruptType = Service::DSP::DSP_DSP::InterruptType;
+
+SERIALIZE_EXPORT_IMPL(Service::DSP::DSP_DSP)
+SERVICE_CONSTRUCT_IMPL(Service::DSP::DSP_DSP)
 
 namespace AudioCore {
 enum class DspPipe;
@@ -151,13 +155,14 @@ void DSP_DSP::ReadPipeIfPossible(Kernel::HLERequestContext& ctx) {
     const u16 pipe_readable_size = static_cast<u16>(system.DSP().GetPipeReadableSize(pipe));
 
     std::vector<u8> pipe_buffer;
-    if (pipe_readable_size >= size)
+    if (pipe_readable_size >= size) {
         pipe_buffer = system.DSP().PipeRead(pipe, size);
+    }
 
     IPC::RequestBuilder rb = rp.MakeBuilder(2, 2);
     rb.Push(RESULT_SUCCESS);
     rb.Push<u16>(pipe_readable_size);
-    rb.PushStaticBuffer(pipe_buffer, 0);
+    rb.PushStaticBuffer(std::move(pipe_buffer), 0);
 
     LOG_DEBUG(Service_DSP, "channel={}, peer={}, size=0x{:04X}, pipe_readable_size=0x{:04X}",
               channel, peer, size, pipe_readable_size);
