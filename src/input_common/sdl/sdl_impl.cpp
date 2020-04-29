@@ -28,10 +28,7 @@ namespace InputCommon {
 namespace SDL {
 
 static std::string GetGUID(SDL_Joystick* joystick) {
-    SDL_JoystickGUID guid = SDL_JoystickGetGUID(joystick);
-    char guid_str[33];
-    SDL_JoystickGetGUIDString(guid, guid_str, sizeof(guid_str));
-    return guid_str;
+    return "0";
 }
 
 /// Creates a ParamPackage from an SDL_Event that can directly be used to create a ButtonDevice
@@ -141,17 +138,18 @@ private:
  */
 std::shared_ptr<SDLJoystick> SDLState::GetSDLJoystickByGUID(const std::string& guid, int port) {
     std::lock_guard lock{joystick_map_mutex};
-    const auto it = joystick_map.find(guid);
+    const std::string fakeGuid = "0";
+    const auto it = joystick_map.find(fakeGuid);
     if (it != joystick_map.end()) {
         while (it->second.size() <= static_cast<std::size_t>(port)) {
-            auto joystick = std::make_shared<SDLJoystick>(guid, static_cast<int>(it->second.size()),
+            auto joystick = std::make_shared<SDLJoystick>(fakeGuid, static_cast<int>(it->second.size()),
                                                           nullptr, [](SDL_Joystick*) {});
             it->second.emplace_back(std::move(joystick));
         }
         return it->second[port];
     }
-    auto joystick = std::make_shared<SDLJoystick>(guid, 0, nullptr, [](SDL_Joystick*) {});
-    return joystick_map[guid].emplace_back(std::move(joystick));
+    auto joystick = std::make_shared<SDLJoystick>(fakeGuid, 0, nullptr, [](SDL_Joystick*) {});
+    return joystick_map[fakeGuid].emplace_back(std::move(joystick));
 }
 
 /**
